@@ -1,4 +1,9 @@
 <?php
+namespace Lazada;
+
+use Exception;
+
+
 class LazopClient
 {
 	public $appkey;
@@ -13,16 +18,12 @@ class LazopClient
 
 	protected $signMethod = "sha256";
 
-	protected $sdkVersion = "lazop-sdk-php-20180422";
-
-	public $logLevel;
-
 	public function getAppkey()
 	{
 		return $this->appkey;
 	}
 
-	public function __construct($url = "",$appkey = "",$secretKey = "")
+	public function __construct($url = "", $appkey = "", $secretKey = "")
 	{
 		$length = strlen($url);
 	    if($length == 0)
@@ -32,10 +33,9 @@ class LazopClient
 		$this->gatewayUrl = $url;
 		$this->appkey = $appkey;
 		$this->secretKey = $secretKey;
-		$this->logLevel = Constants::$log_level_error;
 	}
 
-	protected function generateSign($apiName,$params)
+	protected function generateSign($apiName, $params)
 	{
 		ksort($params);
 
@@ -47,7 +47,7 @@ class LazopClient
 		}
 		unset($k, $v);
 
-		return strtoupper($this->hmac_sha256($stringToBeSigned,$this->secretKey));
+		return strtoupper($this->hmac_sha256($stringToBeSigned, $this->secretKey));
 	}
 
 
@@ -55,7 +55,7 @@ class LazopClient
 	    return hash_hmac('sha256', $data, $key);
 	}
 
-	public function curl_get($url,$apiFields = null,$headerFields = null)
+	public function curl_get($url, $apiFields = null, $headerFields = null)
 	{
 		$ch = curl_init();
 
@@ -90,8 +90,6 @@ class LazopClient
 		{
 			curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $this->connectTimeout);
 		}
-		
-		curl_setopt ( $ch, CURLOPT_USERAGENT, $this->sdkVersion );
 
 		//https ignore ssl check ?
 		if(strlen($url) > 5 && strtolower(substr($url,0,5)) == "https" ) 
@@ -115,14 +113,14 @@ class LazopClient
 			curl_close($ch);
 			if (200 !== $httpStatusCode)
 			{
-				throw new Exception($reponse,$httpStatusCode);
+				throw new Exception($reponse, $httpStatusCode);
 			}
 		}
 
 		return $output;
 	}
 
-	public function curl_post($url, $postFields = null, $fileFields = null,$headerFields = null)
+	public function curl_post($url, $postFields = null, $fileFields = null, $headerFields = null)
 	{
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $url);
@@ -150,8 +148,6 @@ class LazopClient
 			unset($headers);
 	    }
 
-		curl_setopt ( $ch, CURLOPT_USERAGENT, $this->sdkVersion );
-
 		//https ignore ssl check ?
 		if(strlen($url) > 5 && strtolower(substr($url,0,5)) == "https" ) 
 		{
@@ -169,7 +165,7 @@ class LazopClient
 			    $data .= 'Content-Disposition: form-data; name="' . $name . '"';
 			    $data .= "\r\n\r\n" . $content . "\r\n";
 			}
-			unset($name,$content);
+			unset($name, $content);
 		}
 
 		if($fileFields != null)
@@ -181,7 +177,7 @@ class LazopClient
 			    $data .= 'Content-Type: ' . $file['type'] . "\r\n\r\n";
 			    $data .= $file['content'] . "\r\n";
 			}
-			unset($name,$file);
+			unset($name, $file);
 		}
 		$data .= "--" . $delimiter . "--";
 
@@ -211,7 +207,7 @@ class LazopClient
 			curl_close($ch);
 			if (200 !== $httpStatusCode)
 			{
-				throw new Exception($response,$httpStatusCode);
+				throw new Exception($response, $httpStatusCode);
 			}
 		}
 
@@ -239,14 +235,7 @@ class LazopClient
 
 		$requestUrl .= $request->apiName;
 		$requestUrl .= '?';
-
-		$sysParams["partner_id"] = $this->sdkVersion;
-
-		if($this->logLevel == Constants::$log_level_debug)
-		{
-			$sysParams["debug"] = 'true';
-		}
-
+		
 		$sysParams["sign"] = $this->generateSign($request->apiName,array_merge($apiParams, $sysParams));
 
 		foreach ($sysParams as $sysParamKey => $sysParamValue)
@@ -255,23 +244,22 @@ class LazopClient
 		}
 
 		$requestUrl = substr($requestUrl, 0, -1);
-		
 		$resp = '';
 
 		try
 		{
 			if($request->httpMethod == 'POST')
 			{
-				$resp = $this->curl_post($requestUrl, $apiParams, $request->fileParams,$request->headerParams);
+				$resp = $this->curl_post($requestUrl, $apiParams, $request->fileParams, $request->headerParams);
 			}
 			else
 			{
-				$resp = $this->curl_get($requestUrl, $apiParams,$request->headerParams);			
+				$resp = $this->curl_get($requestUrl, $apiParams, $request->headerParams);			
 			}
 		}
 		catch (Exception $e)
 		{
-			$this->logApiError($requestUrl,"HTTP_ERROR_" . $e->getCode(),$e->getMessage());
+			
 			throw $e;
 		}
 
@@ -280,34 +268,12 @@ class LazopClient
 		$respObject = json_decode($resp);
 		if(isset($respObject->code) && $respObject->code != "0") 
 		{
-			$this->logApiError($requestUrl, $respObject->code, $respObject->message);
+			
 		} else 
 		{
-			if($this->logLevel == Constants::$log_level_debug || $this->logLevel == Constants::$log_level_info) 
-			{
-				$this->logApiError($requestUrl, '', '');
-			}
+		
 		}
 		return $resp;
-	}
-
-	protected function logApiError($requestUrl, $errorCode, $responseTxt)
-	{
-		$localIp = isset($_SERVER["SERVER_ADDR"]) ? $_SERVER["SERVER_ADDR"] : "CLI";
-		$logger = new LazopLogger;
-		$logger->conf["log_file"] = rtrim(LAZOP_SDK_WORK_DIR, '\\/') . '/' . "logs/lazopsdk.log." . date("Y-m-d");
-		$logger->conf["separator"] = "^_^";
-		$logData = array(
-		date("Y-m-d H:i:s"),
-		$this->appkey,
-		$localIp,
-		PHP_OS,
-		$this->sdkVersion,
-		$requestUrl,
-		$errorCode,
-		str_replace("\n","",$responseTxt)
-		);
-		$logger->log($logData);
 	}
 
 	function msectime() {

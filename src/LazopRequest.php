@@ -1,4 +1,6 @@
 <?php
+namespace Lazada;
+
 class LazopRequest
 {
 	public $apiName;

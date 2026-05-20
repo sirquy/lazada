@@ -1,4 +1,4 @@
-# Lazada php by Quy Nguyen
+# Lazada php
 
 This is a [Lazada Open API](https://open.lazada.com) Client for PHP.
 
